@@ -1,17 +1,19 @@
 const MAX_DRUNK = 100;
-const BASE_DRUNK_PER_CUP = 16;
+const BASE_DRUNK_PER_CUP = 10;
 const HAND_SIZE = 3;
 const LOG_LIMIT = 18;
 
 const CARD_POOL = [
-  { id: "pretend_drunk", name: "装醉", icon: "😴", tone: "plum", desc: "下回合无视对方让你喝的酒。", flavor: "趴桌三秒，酒桌系统临时查无此人。", kind: "defense" },
-  { id: "flatter", name: "奉承", icon: "🙇", tone: "amber", desc: "让对方本回合多喝 1 杯。", flavor: "这话一说出口，对面不喝都像不给面子。", kind: "attack" },
-  { id: "dilute", name: "掺水", icon: "🫗", tone: "jade", desc: "本回合你喝的酒只按 50% 酒醉度结算。", flavor: "白的变清的，脸上还得装得很真诚。", kind: "defense" },
-  { id: "raise_fish", name: "养鱼", icon: "🐟", tone: "teal", desc: "本回合你喝的酒只按 75% 酒醉度结算。", flavor: "酒杯里讲究一个缓慢游泳，绝不一口到底。", kind: "defense" },
-  { id: "water_as_wine", name: "指水为酒", icon: "💧", tone: "mist", desc: "本回合你喝的酒不产生酒醉度。", flavor: "睁眼说瞎话，杯里全是正经自来水。", kind: "defense" },
-  { id: "snack_guard", name: "下酒菜", icon: "🍢", tone: "gold", desc: "立刻降低 12 点酒醉度。", flavor: "一口关东煮下去，灵魂都坐直了。", kind: "recovery" },
-  { id: "pass_the_cup", name: "甩锅", icon: "🥴", tone: "brick", desc: "你少喝默认那 1 杯，对手替你喝 1 杯。", flavor: "逻辑不重要，重要的是把杯子推过去。", kind: "trick" },
-  { id: "counter_toast", name: "反手敬酒", icon: "🍶", tone: "ink", desc: "若对方本回合让你喝酒，挡回 1 杯给对方。", flavor: "这杯我敬回去，主打一个礼尚往来。", kind: "trick" }
+  { id: "pretend_drunk", name: "装醉", icon: "😴", tone: "plum", desc: "下回合无视对方让你喝的酒。", flavor: "趴桌三秒，酒桌系统临时查无此人。", kind: "defense", rarity: "common", weight: 1 },
+  { id: "flatter", name: "奉承", icon: "🙇", tone: "amber", desc: "让对方本回合多喝 1 杯。", flavor: "这话一说出口，对面不喝都像不给面子。", kind: "attack", rarity: "common", weight: 1 },
+  { id: "dilute", name: "掺水", icon: "🫗", tone: "jade", desc: "本回合你喝的酒只按 50% 酒醉度结算。", flavor: "白的变清的，脸上还得装得很真诚。", kind: "defense", rarity: "common", weight: 1 },
+  { id: "raise_fish", name: "养鱼", icon: "🐟", tone: "teal", desc: "本回合你喝的酒只按 75% 酒醉度结算。", flavor: "酒杯里讲究一个缓慢游泳，绝不一口到底。", kind: "defense", rarity: "common", weight: 1 },
+  { id: "water_as_wine", name: "指水为酒", icon: "💧", tone: "rare-water", desc: "本回合你喝的酒不产生酒醉度。", flavor: "睁眼说瞎话，杯里全是正经自来水。", kind: "defense", rarity: "rare", weight: 0.22 },
+  { id: "red_bull", name: "喝红牛", icon: "🥤", tone: "rare-bull", desc: "立刻增加 1 次绝活使用机会。", flavor: "先把精神顶上来，今晚还能再来一手绝活。", kind: "boost", rarity: "rare", weight: 0.24 },
+  { id: "snack_guard", name: "下酒菜", icon: "🍢", tone: "gold", desc: "立刻降低 12 点酒醉度。", flavor: "一口关东煮下去，灵魂都坐直了。", kind: "recovery", rarity: "common", weight: 1 },
+  { id: "drink_together", name: "共饮", icon: "🍻", tone: "amber", desc: "双方同时喝 3 杯。", flavor: "杯子一撞，谁也别想独善其身。", kind: "chaos", rarity: "common", weight: 0.9 },
+  { id: "pass_the_cup", name: "甩锅", icon: "🥴", tone: "brick", desc: "你少喝默认那 1 杯，对手替你喝 1 杯。", flavor: "逻辑不重要，重要的是把杯子推过去。", kind: "trick", rarity: "common", weight: 1 },
+  { id: "counter_toast", name: "反手敬酒", icon: "🍶", tone: "ink", desc: "若对方本回合让你喝酒，挡回 1 杯给对方。", flavor: "这杯我敬回去，主打一个礼尚往来。", kind: "trick", rarity: "common", weight: 1 }
 ];
 
 const CHARACTER_DEFS = {
@@ -77,8 +79,27 @@ function shuffle(list) {
   return next;
 }
 
+function drawWeightedCards(pool, count) {
+  const source = pool.map((card) => clone(card));
+  const picked = [];
+  while (source.length && picked.length < count) {
+    const totalWeight = source.reduce((sum, card) => sum + (card.weight || 1), 0);
+    let hit = Math.random() * totalWeight;
+    let pickIndex = 0;
+    for (let i = 0; i < source.length; i += 1) {
+      hit -= source[i].weight || 1;
+      if (hit <= 0) {
+        pickIndex = i;
+        break;
+      }
+    }
+    picked.push(source.splice(pickIndex, 1)[0]);
+  }
+  return picked;
+}
+
 function drawCards(count) {
-  return shuffle(CARD_POOL).slice(0, count).map((card) => clone(card));
+  return drawWeightedCards(CARD_POOL, count);
 }
 
 function createLog(text, round, id) {
@@ -120,7 +141,7 @@ function buildFighter(characterId, side) {
       icon: source.special.icon,
       desc: source.special.desc,
       flavor: source.special.flavor,
-      used: false
+      usesLeft: 1
     },
     status: {
       ignoreForcedNextRound: false,
@@ -197,6 +218,47 @@ function playNoiseBurst(ctx, duration = 0.12, volume = 0.025) {
   noise.start(ctx.currentTime);
 }
 
+function playGulp(ctx, cups = 1, startOffset = 0) {
+  const swallows = Math.max(1, Math.min(4, cups));
+  for (let i = 0; i < swallows; i += 1) {
+    const at = ctx.currentTime + startOffset + i * 0.13;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(220, at);
+    osc.frequency.exponentialRampToValueAtTime(150, at + 0.11);
+    gain.gain.setValueAtTime(0.0001, at);
+    gain.gain.exponentialRampToValueAtTime(0.05, at + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.12);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(at);
+    osc.stop(at + 0.12);
+  }
+}
+
+function playCupClink(ctx, startOffset = 0) {
+  playTone(ctx, 1280, 0.05, { type: "triangle", volume: 0.018 });
+  playTone(ctx, 1760, 0.04, { type: "sine", volume: 0.012 });
+  playNoiseBurst(ctx, 0.03, 0.008 + startOffset * 0);
+}
+
+function playShoutHe(ctx, startOffset = 0) {
+  const at = ctx.currentTime + startOffset;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(520, at);
+  osc.frequency.exponentialRampToValueAtTime(280, at + 0.16);
+  gain.gain.setValueAtTime(0.0001, at);
+  gain.gain.exponentialRampToValueAtTime(0.028, at + 0.018);
+  gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.18);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(at);
+  osc.stop(at + 0.18);
+}
+
 function startMusicLoop() {
   const ctx = getAudioContext();
   if (!ctx || musicIntervalRef) return;
@@ -263,6 +325,20 @@ async function playSfx(kind) {
   } else if (kind === "lose") {
     playTone(ctx, 330, 0.22, { type: "sine", volume: 0.045 });
     playTone(ctx, 246.94, 0.3, { type: "sine", volume: 0.035 });
+  } else if (kind === "drink") {
+    playGulp(ctx, 2, 0);
+    playShoutHe(ctx, 0.04);
+  } else if (kind === "drink-heavy") {
+    playCupClink(ctx, 0);
+    playGulp(ctx, 4, 0.03);
+    playShoutHe(ctx, 0.02);
+  } else if (kind === "boost") {
+    playTone(ctx, 440, 0.12, { type: "square", volume: 0.03 });
+    playTone(ctx, 554.37, 0.14, { type: "triangle", volume: 0.026 });
+    playTone(ctx, 659.25, 0.18, { type: "triangle", volume: 0.024 });
+  } else if (kind === "recovery") {
+    playTone(ctx, 392, 0.12, { type: "sine", volume: 0.025 });
+    playTone(ctx, 523.25, 0.16, { type: "triangle", volume: 0.02 });
   }
 }
 
@@ -298,7 +374,7 @@ function chooseEnemyAction(state) {
   const actor = state.enemy;
   const target = state.player;
 
-  if (!actor.special.used) {
+  if (actor.special.usesLeft > 0) {
     if (actor.id === "zhongju" && !target.status.ignoreForcedNextRound && (target.drunkness >= 52 || state.round >= 3)) {
       return { type: "special" };
     }
@@ -332,8 +408,17 @@ function chooseEnemyAction(state) {
       case "water_as_wine":
         score += actor.drunkness >= 56 ? 18 : 7;
         break;
+      case "red_bull":
+        score += actor.special.usesLeft <= 0 ? 18 : 8;
+        score += actor.drunkness >= 42 ? 5 : 0;
+        break;
       case "snack_guard":
         score += actor.drunkness >= 54 ? 17 : 5;
+        break;
+      case "drink_together":
+        score += target.drunkness > actor.drunkness ? 15 : 4;
+        score += target.drunkness >= 68 ? 7 : 0;
+        score -= actor.drunkness >= 74 ? 8 : 0;
         break;
       case "pass_the_cup":
         score += targetShieldActive ? 2 : 12 + actor.drunkness / 12;
@@ -367,6 +452,7 @@ function createRoundContext(fighter) {
     setIgnoreForcedNextRound: false,
     setZeroNextRound: false,
     persistHalfRounds: 0,
+    extraSpecialUse: 0,
     pose: "idle",
     poseLabel: ""
   };
@@ -425,11 +511,24 @@ function applyAction(actor, target, action, selfRound, targetRound, state, round
       selfRound.poseLabel = "水";
       pushLog(state, `${actor.name}一本正经指水为酒，这回合酒醉度清零结算。`, roundNumber);
       break;
+    case "red_bull":
+      selfRound.extraSpecialUse += 1;
+      selfRound.pose = "god";
+      selfRound.poseLabel = "牛";
+      pushLog(state, `${actor.name}吨吨灌下红牛，硬是给自己续了 1 次绝活机会。`, roundNumber);
+      break;
     case "snack_guard":
       selfRound.relief += 12;
       selfRound.pose = "eat";
       selfRound.poseLabel = "串";
       pushLog(state, `${actor.name}抓起下酒菜猛炫，立刻回落 12 点酒醉度。`, roundNumber);
+      break;
+    case "drink_together":
+      selfRound.baseCups += 2;
+      targetRound.baseCups += 2;
+      selfRound.pose = "toast";
+      selfRound.poseLabel = "共饮";
+      pushLog(state, `${actor.name}拉着${target.name}共饮，这回合双方都各自多喝 3 杯。`, roundNumber);
       break;
     case "pass_the_cup":
       selfRound.baseCups = Math.max(0, selfRound.baseCups - 1);
@@ -500,6 +599,10 @@ function settlePersistentStatus(fighter, roundCtx) {
   if (roundCtx.persistHalfRounds > 0) {
     fighter.status.halfEffectRounds = Math.max(fighter.status.halfEffectRounds, roundCtx.persistHalfRounds);
   }
+
+  if (roundCtx.extraSpecialUse > 0) {
+    fighter.special.usesLeft += roundCtx.extraSpecialUse;
+  }
 }
 
 function calculateGain(fighter, roundCtx) {
@@ -553,13 +656,35 @@ function decorateFighter(fighter) {
   fighter.statusText = statusText;
   fighter.avatarClass = `avatar-${fighter.id} pose-${fighter.pose} ${tipsyClass}`;
   fighter.fillClass = fighter.side === "player" ? "player-fill" : "enemy-fill";
-  fighter.specialButtonClass = fighter.special.used ? "disabled" : "";
-  fighter.specialButtonText = fighter.special.used ? "绝活已用过" : `发动绝活：${fighter.special.name}`;
+  fighter.specialButtonClass = fighter.special.usesLeft <= 0 ? "disabled" : "";
+  fighter.specialButtonText = fighter.special.usesLeft <= 0
+    ? "绝活已用完"
+    : `发动绝活：${fighter.special.name}（剩 ${fighter.special.usesLeft} 次）`;
 }
 
 function decorateState(state) {
   decorateFighter(state.player);
   decorateFighter(state.enemy);
+  if (state.stage === "result") {
+    const isDraw = state.player.drunkness >= MAX_DRUNK && state.enemy.drunkness >= MAX_DRUNK;
+    if (!isDraw) {
+      const playerWon = state.enemy.drunkness >= MAX_DRUNK;
+      state.player.avatarClass += playerWon ? " result-winner" : " result-loser";
+      state.enemy.avatarClass += playerWon ? " result-loser" : " result-winner";
+      if (playerWon) {
+        state.player.poseLabel = "庆";
+        state.enemy.poseLabel = "晕";
+      } else {
+        state.player.poseLabel = "晕";
+        state.enemy.poseLabel = "庆";
+      }
+    } else {
+      state.player.avatarClass += " result-loser";
+      state.enemy.avatarClass += " result-loser";
+      state.player.poseLabel = "晕";
+      state.enemy.poseLabel = "晕";
+    }
+  }
   state.roundBanner = state.roundBanner || buildRoundBanner(state.player, state.enemy);
   return state;
 }
@@ -577,8 +702,8 @@ function playRound(prevState, playerChoice) {
   if (state.enemy.status.halfEffectRounds > 0) enemyRound.effectMultiplier *= 0.5;
   if (state.player.status.zeroNextRound) playerRound.zeroDrunk = true;
   if (state.enemy.status.zeroNextRound) enemyRound.zeroDrunk = true;
-  if (playerChoice.type === "special") state.player.special.used = true;
-  if (enemyChoice.type === "special") state.enemy.special.used = true;
+  if (playerChoice.type === "special") state.player.special.usesLeft = Math.max(0, state.player.special.usesLeft - 1);
+  if (enemyChoice.type === "special") state.enemy.special.usesLeft = Math.max(0, state.enemy.special.usesLeft - 1);
 
   pushLog(state, `第 ${roundNumber} 回合开喝：双方先端起默认那一杯。`, roundNumber);
   applyAction(state.player, state.enemy, playerAction, playerRound, enemyRound, state, roundNumber);
@@ -598,7 +723,9 @@ function playRound(prevState, playerChoice) {
     playerActionText: `你出：${playerAction.name}`,
     enemyActionText: `对手出：${enemyAction.name}`,
     playerCupText: `${playerGain.totalCups} 杯 / +${playerGain.gain}`,
-    enemyCupText: `${enemyGain.totalCups} 杯 / +${enemyGain.gain}`
+    enemyCupText: `${enemyGain.totalCups} 杯 / +${enemyGain.gain}`,
+    playerCups: playerGain.totalCups,
+    enemyCups: enemyGain.totalCups
   };
 
   pushLog(state, `${state.player.name}本回合喝了 ${playerGain.totalCups} 杯，酒醉度来到 ${state.player.drunkness}。${state.enemy.name}喝了 ${enemyGain.totalCups} 杯，酒醉度来到 ${state.enemy.drunkness}。`, roundNumber);
@@ -632,10 +759,18 @@ function avatarMarkup(className, poseLabel, mini = false) {
     <div class="avatar ${mini ? "mini " : ""}${className}">
       <div class="avatar-shadow"></div>
       <div class="avatar-body"></div>
+      <div class="avatar-body-detail"></div>
+      <div class="avatar-jacket left"></div>
+      <div class="avatar-jacket right"></div>
+      <div class="avatar-collar left"></div>
+      <div class="avatar-collar right"></div>
+      <div class="avatar-tie"></div>
+      <div class="avatar-badge"></div>
       <div class="avatar-sash"></div>
       <div class="avatar-arm left"></div>
       <div class="avatar-arm right"></div>
-      <div class="avatar-prop"></div>
+      <div class="avatar-prop main"></div>
+      <div class="avatar-prop alt"></div>
       <div class="avatar-head">
         <div class="avatar-hair"></div>
         <div class="avatar-brow left"></div>
@@ -659,9 +794,9 @@ function renderSelectScreen() {
       <div class="hero-banner">
         <img class="hero-icon" src="./assets/icon-jiuwu-dazhan.png" alt="酒屋大战图标">
         <div>
-          <div class="hero-chip">网页版试玩版</div>
+          <div class="hero-chip">居酒屋回合战</div>
           <div class="hero-title">酒屋大战</div>
-          <div class="hero-subtitle">先做成微信网页版试玩，选一个酒桌狠人开局。玩法和小程序版一致：每回合默认喝 1 杯，靠技能卡少喝、让对手多喝，谁先醉倒谁输。</div>
+          <div class="hero-subtitle">选一个酒桌狠人开局。每回合默认喝 1 杯，靠技能卡少喝、让对手多喝，谁先醉倒谁输。</div>
           <div class="hero-actions">
             <button class="sound-btn" data-action="toggle-audio">${uiState.audioEnabled ? "音乐已开" : "点我开音乐"}</button>
             <span class="audio-pill">${uiState.audioEnabled ? "背景乐 + 音效开启" : "微信里首次点一下即可启用声音"}</span>
@@ -673,7 +808,7 @@ function renderSelectScreen() {
         <div class="rule-pill">每回合双方默认喝 1 杯</div>
         <div class="rule-pill">随机抽 3 张技能卡</div>
         <div class="rule-pill">角色绝活每局 1 次</div>
-        <div class="rule-pill">双击本地 HTML 就能试玩</div>
+        <div class="rule-pill">酒醉度满 100 就晕</div>
       </div>
 
       <div class="roster">
@@ -696,13 +831,15 @@ function renderSelectScreen() {
 
       <section class="catalog-board">
         <div class="catalog-title">酒桌套路册</div>
-        <div class="catalog-subtitle">你定义的五个基础招式都保留了，我再补了几张更像酒桌现场会出现的滑稽卡牌，先给网页版打出点变化。</div>
         <div class="catalog-list">
           ${cards.map((card) => `
             <div class="catalog-card tone-${card.tone}">
               <div class="catalog-icon">${card.icon}</div>
               <div>
-                <div class="catalog-name">${card.name}</div>
+                <div class="catalog-name-row">
+                  <div class="catalog-name">${card.name}</div>
+                  ${card.rarity === "rare" ? `<span class="rarity-badge">稀有</span>` : ""}
+                </div>
                 <div class="catalog-desc">${card.desc}</div>
                 <div class="catalog-flavor">${card.flavor}</div>
               </div>
@@ -755,6 +892,20 @@ function renderBattleScreen() {
       <div class="arena">
         <div class="noren left"></div>
         <div class="noren right"></div>
+        <div class="backroom-glow"></div>
+        <div class="backroom-lamp lamp-left"></div>
+        <div class="backroom-lamp lamp-mid"></div>
+        <div class="backroom-lamp lamp-right"></div>
+        <div class="backroom-table table-left"></div>
+        <div class="backroom-table table-mid"></div>
+        <div class="backroom-table table-right"></div>
+        <div class="backroom-guest guest-left"></div>
+        <div class="backroom-guest guest-mid"></div>
+        <div class="backroom-guest guest-right"></div>
+        <div class="izakaya-decor menu-left">今日串烧</div>
+        <div class="izakaya-decor menu-right">清酒热卖</div>
+        <div class="izakaya-sticker sticker-left">酒</div>
+        <div class="izakaya-sticker sticker-right">笑</div>
         <div class="table-line"></div>
 
         <div class="fighters-row">
@@ -779,11 +930,16 @@ function renderBattleScreen() {
       ${!isResult ? `
         <section class="action-board">
           <div class="action-head">
-            <div>
+            <div class="action-meta">
               <div class="action-title">本回合抽到的技能卡</div>
-              <div class="status-hint">${state.player.special.desc}</div>
+              <div class="special-callout">
+                <div class="special-callout-label">本角绝活</div>
+                <div class="special-callout-name">${state.player.special.icon} ${state.player.special.name}</div>
+                <div class="special-callout-desc">${state.player.special.desc}</div>
+                <div class="special-callout-flavor">${state.player.special.flavor}</div>
+              </div>
             </div>
-            <button class="special-btn ${state.player.specialButtonClass}" data-action="use-special" ${uiState.busy || state.player.special.used ? "disabled" : ""}>${state.player.specialButtonText}</button>
+            <button class="special-btn ${state.player.specialButtonClass}" data-action="use-special" ${uiState.busy || state.player.special.usesLeft <= 0 ? "disabled" : ""}>${state.player.specialButtonText}</button>
           </div>
           ${uiState.busy ? `<div class="busy-strip">${uiState.busyText}</div>` : ""}
           <div class="hand-grid">
@@ -791,7 +947,10 @@ function renderBattleScreen() {
               <button class="card-btn tone-${card.tone}" data-action="use-card" data-index="${index}" ${uiState.busy ? "disabled" : ""}>
                 <div class="skill-icon">${card.icon}</div>
                 <div class="skill-copy">
-                  <div class="skill-name">${card.name}</div>
+                  <div class="skill-name-row">
+                    <div class="skill-name">${card.name}</div>
+                    ${card.rarity === "rare" ? `<span class="rarity-badge">稀有</span>` : ""}
+                  </div>
                   <div class="catalog-desc">${card.desc}</div>
                   <div class="catalog-flavor">${card.flavor}</div>
                 </div>
@@ -855,7 +1014,8 @@ function resolveRound(choice) {
   if (!uiState.gameState || uiState.busy || uiState.gameState.stage !== "battle") return;
   uiState.busy = true;
   uiState.busyText = getBusyText(uiState.gameState.enemy);
-  playSfx(choice.type === "special" ? "special" : "card");
+  const selectedCard = choice.type === "card" ? uiState.gameState.playerHand[choice.cardIndex] : null;
+  playSfx(choice.type === "special" ? "special" : sfxKindForCard(selectedCard));
   render();
 
   setTimeout(() => {
@@ -863,6 +1023,10 @@ function resolveRound(choice) {
     uiState.busy = false;
     uiState.busyText = "";
     render();
+    if (uiState.gameState?.lastRound) {
+      const totalCups = (uiState.gameState.lastRound.playerCups || 0) + (uiState.gameState.lastRound.enemyCups || 0);
+      playSfx(totalCups >= 4 ? "drink-heavy" : "drink");
+    }
     if (uiState.gameState.stage === "result") {
       playSfx(uiState.gameState.result.title === "你把对面喝趴了" ? "win" : "lose");
     }
@@ -883,5 +1047,12 @@ document.addEventListener("click", (event) => {
   if (action === "restart") restartBattle();
   if (action === "back-select") backToSelect();
 });
+
+function sfxKindForCard(card) {
+  if (!card) return "card";
+  if (card.id === "red_bull") return "boost";
+  if (card.id === "snack_guard") return "recovery";
+  return "card";
+}
 
 render();
